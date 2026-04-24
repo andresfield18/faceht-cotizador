@@ -203,6 +203,10 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         Comparativa
       </div>
+      <div class="nav-item" id="nav-pedidos" onclick="showPage('pedidos')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+        Pedidos <span id="pedidos-badge" style="display:none;background:#FF6B35;color:white;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:4px;">0</span>
+      </div>
       <div class="nav-item" id="nav-catalogo" onclick="showPage('catalogo')">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
         Catálogo
@@ -460,6 +464,22 @@
       </div>
     </div>
 
+    <!-- ══ PEDIDOS ══ -->
+    <div class="page" id="page-pedidos">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+        <div class="page-header"><h2>📦 Pedidos de clientes</h2><p>Solicitudes recibidas desde el portal web</p></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <a href="https://andresfield18.github.io/faceht-pedidos" target="_blank" class="btn btn-sm" style="text-decoration:none;">🔗 Portal clientes</a>
+          <button class="btn btn-sm" onclick="loadFromSheets().then(()=>renderPedidos())">🔄 Actualizar</button>
+        </div>
+      </div>
+      <div class="card" style="padding:0; overflow:hidden;">
+        <div class="table-wrap" id="pedidos-content">
+          <div class="empty">No hay pedidos recibidos aún</div>
+        </div>
+      </div>
+    </div>
+
     <!-- ══ CATÁLOGO ══ -->
     <div class="page" id="page-catalogo">
       <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
@@ -642,7 +662,7 @@ const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto'
 const fmt = n => new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(n);
 const fmtK = n => n>=1000000 ? (n/1000000).toFixed(1)+'M' : n>=1000 ? (n/1000).toFixed(0)+'K' : n;
 
-let items=[], quotes=[], clients=[], qNum=1, selProd=null;
+let items=[], quotes=[], clients=[], pedidos=[], qNum=1, selProd=null;
 let charts = {};
 
 // ─── SIDEBAR ───
@@ -660,6 +680,7 @@ function showPage(id) {
   if(id==='historial') renderHistorial();
   if(id==='clientes') renderClients();
   if(id==='catalogo') renderCatalog('');
+  if(id==='pedidos') renderPedidos();
   if(id==='comparativa') initComparativa();
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('overlay').classList.remove('open');
@@ -1147,6 +1168,71 @@ function runComparativa() {
 }
 
 // ─── CATALOG ───
+function renderPedidos() {
+  const wrap = document.getElementById('pedidos-content');
+  if(!pedidos.length){ wrap.innerHTML='<div class="empty">No hay pedidos recibidos aún.<br><br>Comparte el portal con tus clientes:<br><a href="https://andresfield18.github.io/faceht-pedidos" target="_blank" style="color:var(--blue);">andresfield18.github.io/faceht-pedidos</a></div>'; return; }
+  const pending = pedidos.filter(p=>p[9]==='PENDIENTE'||!p[9]).length;
+  const badge = document.getElementById('pedidos-badge');
+  if(pending>0){ badge.style.display='inline'; badge.textContent=pending; }
+  else { badge.style.display='none'; }
+  const rows = pedidos.map((p,idx)=>{
+    const estado = p[9]||'PENDIENTE';
+    const color = estado==='CONVERTIDO'?'var(--green)':estado==='RECHAZADO'?'#B91C1C':'var(--orange)';
+    return `<tr>
+      <td style="font-weight:600;">${p[0]||''}</td>
+      <td>${p[1]||''}</td>
+      <td><strong>${p[3]||''}</strong><br><span style="font-size:11px;color:var(--text-muted);">${p[4]||''} · ${p[5]||''}</span></td>
+      <td style="font-size:11px;max-width:200px;">${(p[7]||'').split(';').map(x=>x.split('|')[1]||x).join(', ')}</td>
+      <td style="text-align:center;">${p[6]||0}</td>
+      <td style="font-size:11px;color:var(--text-muted);max-width:120px;">${p[8]||'-'}</td>
+      <td><span style="color:${color};font-weight:600;font-size:11px;">${estado}</span></td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-primary btn-sm" style="margin-right:4px;" onclick="convertirPedido(${idx})" title="Convertir en cotización">📋 Cotizar</button>
+        <button class="btn btn-danger" onclick="rechazarPedido(${idx})" title="Rechazar pedido">✗</button>
+      </td>
+    </tr>`;
+  }).reverse().join(''); // newest first
+  wrap.innerHTML=`<table><thead><tr><th>N° Pedido</th><th>Fecha</th><th>Cliente</th><th>Productos</th><th>Und.</th><th>Nota</th><th>Estado</th><th>Acción</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function convertirPedido(idx) {
+  const p = pedidos[idx];
+  if(!p) return;
+  // Parse products: "COD|DESC|QTY;COD2|DESC2|QTY2"
+  const prods = (p[7]||'').split(';').filter(Boolean);
+  items = [];
+  prods.forEach(prod => {
+    const parts = prod.split('|');
+    const code = parts[0]||'';
+    const desc = parts[1]||code;
+    const qty  = parseInt(parts[2])||1;
+    const found = PM_custom.find(x=>x.c===code);
+    if(found) items.push({...found, qty, type:'mayor', pBase:found.p});
+    else items.push({c:code, d:desc, p:0, u:0, qty, type:'mayor', pBase:0});
+  });
+  // Fill client data
+  document.getElementById('cli-nombre').value  = p[3]||'';
+  document.getElementById('cli-tel').value     = p[4]||'';
+  document.getElementById('cli-ciudad').value  = p[5]||'';
+  document.getElementById('cli-atencion').value = '';
+  document.getElementById('cli-dir').value     = '';
+  document.getElementById('cli-id').value      = '';
+  setTodayDate();
+  // Mark as converted
+  pedidos[idx][9] = 'CONVERTIDO';
+  persistData();
+  renderItems();
+  showPage('cotizar');
+  alert('Pedido '+p[0]+' cargado en cotización. Revisa los precios y guarda.');
+}
+
+function rechazarPedido(idx) {
+  if(!confirm('¿Rechazar el pedido '+pedidos[idx][0]+'?')) return;
+  pedidos[idx][9] = 'RECHAZADO';
+  persistData();
+  renderPedidos();
+}
+
 function renderCatalog(q) {
   const ql=q.toLowerCase();
   const dm={};PD_custom.forEach(p=>dm[p.c]=p);
@@ -1219,13 +1305,20 @@ function setSyncStatus(s, msg) {
 }
 
 // ── Write all data via POST to Web App ──
+function pedidosToRows() {
+  if(!pedidos.length) return [];
+  const header = ['N° Pedido','Fecha','Hora','Cliente','Teléfono','Ciudad','Total unidades','Productos','Nota','Estado'];
+  return [header, ...pedidos];
+}
+
 async function writeAllToSheets() {
   const body = {
     quotes:  quotesToRows(),
     clients: clientsToRows(),
     config:  configToRows(),
     pm:      catalogToRows(PM_custom),
-    pd:      catalogToRows(PD_custom)
+    pd:      catalogToRows(PD_custom),
+    pedidos: pedidosToRows()
   };
   const res = await fetch(WEBAPP_URL, {
     method: 'POST',
@@ -1332,10 +1425,16 @@ async function loadFromSheets() {
     const cloudPM = rowsToCatalog(data.pm || []);
     const cloudPD = rowsToCatalog(data.pd || []);
 
-    if(cloudQuotes.length)  quotes    = cloudQuotes;
-    if(cloudClients.length) clients   = cloudClients;
-    if(cloudPM.length)      PM_custom = cloudPM;
-    if(cloudPD.length)      PD_custom = cloudPD;
+    const cloudPedidos = data.pedidos ? data.pedidos.slice(1) : []; // skip header row
+    if(cloudQuotes.length)   quotes    = cloudQuotes;
+    if(cloudClients.length)  clients   = cloudClients;
+    if(cloudPM.length)       PM_custom = cloudPM;
+    if(cloudPD.length)       PD_custom = cloudPD;
+    if(cloudPedidos.length)  pedidos   = cloudPedidos;
+    // Update badge
+    const pending = pedidos.filter(p=>!p[9]||p[9]==='PENDIENTE').length;
+    const badge = document.getElementById('pedidos-badge');
+    if(badge){ if(pending>0){badge.style.display='inline';badge.textContent=pending;}else{badge.style.display='none';} }
 
     persistLocal(); // save as local cache
     document.getElementById('quote-counter').textContent =
@@ -1356,6 +1455,7 @@ function persistLocal() {
     localStorage.setItem('faceht_clients', JSON.stringify(clients));
     localStorage.setItem('faceht_pm',      JSON.stringify(PM_custom));
     localStorage.setItem('faceht_pd',      JSON.stringify(PD_custom));
+    localStorage.setItem('faceht_pedidos', JSON.stringify(pedidos));
   } catch(e){ console.warn('localStorage error',e); }
 }
 function loadLocal() {
@@ -1365,6 +1465,7 @@ function loadLocal() {
     const c=localStorage.getItem('faceht_clients'); if(c) clients=JSON.parse(c);
     const pm=localStorage.getItem('faceht_pm');     if(pm) PM_custom=JSON.parse(pm);
     const pd=localStorage.getItem('faceht_pd');     if(pd) PD_custom=JSON.parse(pd);
+    const ped=localStorage.getItem('faceht_pedidos'); if(ped) pedidos=JSON.parse(ped);
     document.getElementById('quote-counter').textContent =
       quotes.length+' cotización'+(quotes.length===1?'':'es')+' guardadas';
   } catch(e){ console.warn('loadLocal error',e); }
