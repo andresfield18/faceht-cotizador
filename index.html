@@ -1291,7 +1291,7 @@ function deleteProduct(idx) {
 // ─────────────────────────────────────────────
 // GOOGLE SHEETS SYNC — vía Apps Script Web App
 // ─────────────────────────────────────────────
-const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwX-MfnLnXWykpO4Cqzrqne1dY1bqaDNPAD0QXDGtt_G_LGQJVP2VZsibnZBKSKUe1v/exec';
+const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzdL5Al7sJG__IZtdKSM1x4C_DkRhBvR_iiaHz615GhNJyIYf8Aw1VQ5IxGaXMr8eG7/exec';
 
 let syncStatus = 'idle'; // idle | syncing | ok | error
 
@@ -1312,6 +1312,7 @@ function pedidosToRows() {
 }
 
 async function writeAllToSheets() {
+  // Use no-cors POST — Apps Script accepts this
   const body = {
     quotes:  quotesToRows(),
     clients: clientsToRows(),
@@ -1320,18 +1321,22 @@ async function writeAllToSheets() {
     pd:      catalogToRows(PD_custom),
     pedidos: pedidosToRows()
   };
-  const res = await fetch(WEBAPP_URL, {
-    method: 'POST',
-    body: JSON.stringify(body)
-  });
-  const data = await res.json();
-  if(data.error) throw new Error(data.error);
+  try {
+    await fetch(WEBAPP_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {'Content-Type':'text/plain'},
+      body: JSON.stringify(body)
+    });
+  } catch(e) { console.warn('write error', e); }
   return true;
 }
 
 // ── Read all data via GET from Web App ──
 async function readAllFromSheets() {
-  const res = await fetch(WEBAPP_URL + '?t=' + Date.now()); // cache-bust
+  const url = WEBAPP_URL + '?t=' + Date.now();
+  const res = await fetch(url, { method: 'GET' });
+  if(!res.ok) throw new Error('HTTP ' + res.status);
   const data = await res.json();
   if(data.error) throw new Error(data.error);
   return data;
